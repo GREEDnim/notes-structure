@@ -43,7 +43,12 @@
         <h3 class="text-lg font-semibold text-white">
           Mindmap (Array & String Algorithms)
         </h3>
-        <div class="text-sm text-gray-400">Click nodes to expand / center</div>
+        <div class="flex items-center gap-4">
+          <div class="text-sm text-gray-400">Click nodes to expand / center</div>
+          <button id="layoutToggle" class="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors">
+            Horizontal
+          </button>
+        </div>
       </div>
       <svg id="mindmap"></svg>
     </div>
@@ -269,6 +274,7 @@
       const width = window.innerWidth;
       const height = window.innerHeight;
       const margin = { top: 50, right: 120, bottom: 50, left: 100 };
+      let isHorizontal = true;
 
       const g = svg
         .append("g")
@@ -286,12 +292,26 @@
       root.x0 = 0;
       root.y0 = 0;
 
-      const treeLayout = d3.tree().nodeSize([100, 300]);
+      const treeLayout = d3.tree().nodeSize(getTreeNodeSize());
       const zoom = d3
         .zoom()
         .scaleExtent([0.3, 2.5])
         .on("zoom", (event) => g.attr("transform", event.transform));
       svg.call(zoom);
+
+      // Handle layout toggle
+      const layoutToggle = document.getElementById("layoutToggle");
+      layoutToggle.addEventListener("click", () => {
+        isHorizontal = !isHorizontal;
+        layoutToggle.textContent = isHorizontal ? "Horizontal" : "Vertical";
+        treeLayout.nodeSize(getTreeNodeSize());
+        update(root);
+        centerInitialNode(root);
+      });
+
+      function getTreeNodeSize() {
+        return isHorizontal ? [100, 300] : [300, 100];
+      }
 
       if (root.children) root.children.forEach(collapse);
       update(root);
@@ -311,44 +331,53 @@
         const links = tree.links();
         nodes.forEach((d) => (d.y = d.depth * 250));
 
+        // Update nodes with proper key function
         const node = g
           .selectAll("g.node")
-          .data(nodes, (d) => d.id || (d.id = ++window.i || 1));
+          .data(nodes, d => d.data.name + d.depth);
 
+        // Enter new nodes
         const nodeEnter = node
           .enter()
           .append("g")
           .attr("class", "node cursor-pointer")
-          .attr(
-            "transform",
-            (d) =>
-              `translate(${source.y0 || source.y},${source.x0 || source.x})`
-          )
-          .on("click", (event, d) => {
-            if (d.children) {
-              d._children = d.children;
-              d.children = null;
-            } else if (d._children) {
-              d.children = d._children;
-              d._children = null;
-            }
-            update(d);
-            if (d.children || d._children) centerNode(d);
+          .attr("transform", d => {
+            const x = source.x0 || source.x;
+            const y = source.y0 || source.y;
+            return isHorizontal ? 
+              `translate(${y},${x})` : 
+              `translate(${x},${y})`;
           });
 
-        const texts = nodeEnter
+        // Add click handler only once during enter
+        nodeEnter.on("click", (event, d) => {
+          event.stopPropagation();
+          if (d.children) {
+            d._children = d.children;
+            d.children = null;
+          } else if (d._children) {
+            d.children = d._children;
+            d._children = null;
+          }
+          update(d);
+          if (d.children || d._children) centerNode(d);
+        });
+
+        // Add text elements only for new nodes
+        nodeEnter
           .append("text")
           .attr("dy", 4)
           .attr("text-anchor", "middle")
           .style("fill", "white")
           .style("font-size", "14px")
-          .text((d) => d.data.name);
+          .text(d => d.data.name);
 
-        nodeEnter.each(function (d) {
+        // Add rectangles only for new nodes
+        nodeEnter.each(function(d) {
           const textNode = d3.select(this).select("text").node();
           const bbox = textNode.getBBox();
-          const paddingX = 15,
-            paddingY = 10;
+          const paddingX = 15, paddingY = 10;
+          
           d3.select(this)
             .insert("rect", "text")
             .attr("x", -bbox.width / 2 - paddingX)
@@ -357,44 +386,58 @@
             .attr("height", bbox.height + paddingY)
             .attr("rx", 6)
             .attr("ry", 6)
-            .style("fill", (d) => colorScale[d.depth % colorScale.length])
+            .style("fill", d => colorScale[d.depth % colorScale.length])
             .style("stroke", "#374151")
             .style("stroke-width", 2);
         });
 
-        nodeEnter
-          .merge(node)
+        // Update existing nodes positions
+        const nodeUpdate = nodeEnter.merge(node);
+        
+        nodeUpdate
           .transition()
           .duration(400)
-          .attr("transform", (d) => `translate(${d.y},${d.x})`);
+          .attr("transform", d => isHorizontal ? 
+            `translate(${d.y},${d.x})` : 
+            `translate(${d.x},${d.y})`
+          );
 
-        node
-          .exit()
+        // Remove old nodes
+        const nodeExit = node.exit()
           .transition()
           .duration(300)
-          .attr("transform", (d) => `translate(${source.y},${source.x})`)
+          .attr("transform", d => isHorizontal ? 
+            `translate(${source.y},${source.x})` : 
+            `translate(${source.x},${source.y})`
+          )
           .remove();
 
-        const link = g.selectAll("path.link").data(links, (d) => d.target.id);
+        // Update links with proper key function
+        const link = g
+          .selectAll("path.link")
+          .data(links, d => d.target.data.name + d.target.depth);
 
-        link
+        // Enter new links
+        const linkEnter = link
           .enter()
           .insert("path", "g")
           .attr("class", "link")
-          .attr("d", (d) => {
+          .attr("d", d => {
             const o = { x: source.x0 || source.x, y: source.y0 || source.y };
             return diagonal({ source: o, target: o });
-          })
-          .merge(link)
+          });
+
+        // Update existing links
+        linkEnter.merge(link)
           .transition()
           .duration(400)
           .attr("d", diagonal);
 
-        link
-          .exit()
+        // Remove old links
+        link.exit()
           .transition()
           .duration(300)
-          .attr("d", (d) => {
+          .attr("d", d => {
             const o = { x: source.x, y: source.y };
             return diagonal({ source: o, target: o });
           })
@@ -407,24 +450,37 @@
       }
 
       function diagonal(d) {
-        return `M${d.source.y},${d.source.x}
-              C${(d.source.y + d.target.y) / 2},${d.source.x}
-               ${(d.source.y + d.target.y) / 2},${d.target.x}
-               ${d.target.y},${d.target.x}`;
+        if (isHorizontal) {
+          return `M${d.source.y},${d.source.x}
+                C${(d.source.y + d.target.y) / 2},${d.source.x}
+                 ${(d.source.y + d.target.y) / 2},${d.target.x}
+                 ${d.target.y},${d.target.x}`;
+        } else {
+          return `M${d.source.x},${d.source.y}
+                C${d.source.x},${(d.source.y + d.target.y) / 2}
+                 ${d.target.x},${(d.source.y + d.target.y) / 2}
+                 ${d.target.x},${d.target.y}`;
+        }
       }
 
-      // Center node smoothly on the left side of the screen
+      // Center node smoothly on the left/top side of the screen
       function centerNode(source) {
         const transform = d3.zoomTransform(svg.node());
         const x = source.x;
         const y = source.y;
         const scale = transform.k;
 
-        const centerX = width * 0.2; // Position on the left (20% from left edge)
-        const centerY = height / 2;
+        let centerX, centerY;
+        if (isHorizontal) {
+          centerX = width * 0.2; // Position on the left (20% from left edge)
+          centerY = height / 2;
+        } else {
+          centerX = width / 2;
+          centerY = height * 0.2; // Position on the top (20% from top edge)
+        }
 
-        const translateX = centerX - y * scale;
-        const translateY = centerY - x * scale;
+        const translateX = centerX - (isHorizontal ? y : x) * scale;
+        const translateY = centerY - (isHorizontal ? x : y) * scale;
 
         svg
           .transition()
