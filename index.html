@@ -43,25 +43,24 @@
       <div class="flex items-center justify-between mb-2">
         <h3 class="text-lg font-semibold text-white">
           Mindmap (Data Structures & Algorithms)
-          Mindmap (Data Structures & Algorithms)
         </h3>
         <div class="flex items-center gap-4">
-          <div class="text-sm text-gray-400">
+          <div class="text-sm text-gray-400 hidden md:block">
             Click nodes to expand / center
           </div>
           <div class="flex gap-2">
-            <button
-              id="collapseAll"
-              class="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700 transition-colors"
-            >
-              Close All
-            </button>
-            <button
-              id="layoutToggle"
-              class="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
-            >
-              Horizontal
-            </button>
+              <button
+                id="collapseAll"
+                class="px-3 py-1 text-xs font-medium text-white bg-red-500 rounded-md shadow-sm hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 transition-all duration-150"
+              >
+                Close All
+              </button>
+              <button
+                id="layoutToggle"
+                class="px-3 py-1 text-xs font-medium text-white bg-blue-500 rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all duration-150"
+              >
+                Horizontal
+              </button>
           </div>
         </div>
       </div>
